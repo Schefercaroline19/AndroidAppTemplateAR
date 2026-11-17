@@ -1,38 +1,33 @@
-# Sanrio AR — integração dos personagens
+# Sanrio AR — personagens e configuração
 
-A interface do aplicativo foi personalizada com uma identidade visual rosa e com uma lista de personagens reconhecidos por nome de arquivo.
-
-## Modelos esperados
-
-Copie os arquivos GLB para `app/src/main/assets/` no Android Studio:
+## Arquivos 3D esperados
+Coloque os arquivos GLB diretamente em `app/src/main/assets/`:
 
 | Arquivo | Nome exibido |
 |---|---|
-| `hello_kitty.glb` | Hello Kitty |
+| `hello_kitty.glb` (ou `hello_kitty (1).glb`) | Hello Kitty |
 | `my_melody.glb` | My Melody |
 | `kuromi.glb` | Kuromi |
 | `cinamon.glb` | Cinnamoroll |
 | `pompompurin.glb` | Pompompurin |
 
-A lista é montada automaticamente lendo os arquivos `.glb` nessa pasta. O nome de Cinnamoroll aceita `cinamon.glb`, `cinnamon.glb` ou `cinnamoroll.glb`.
+A tela de seleção lista automaticamente os arquivos GLB encontrados. O nome `hello_kitty (1).glb` também é reconhecido e exibido como Hello Kitty.
 
-## Adicionar os quatro modelos recebidos
+## Funcionamento
+1. Abra a tela de seleção de personagens.
+2. Toque em **Ver na câmera**.
+3. Aguarde o carregamento do modelo e posicione-o no ambiente.
+4. Toque em **Coletar** para remover o personagem da cena, somar um ponto e ouvir o efeito de confirmação.
+5. A câmera toca uma trilha ambiente suave enquanto a tela está ativa.
 
-O pacote `personagens_sanrio_assets.zip` contém:
-- `my_melody.glb`
-- `kuromi.glb`
-- `cinamon.glb`
-- `pompompurin.glb`
+## Modelo inicial
+Ao abrir a câmera sem uma escolha anterior, o aplicativo procura primeiro Hello Kitty. Se esse arquivo não existir, escolhe o primeiro GLB disponível. Se o arquivo selecionado estiver ausente, apresenta uma mensagem em vez de tentar carregar um caminho inválido.
 
-Extraia o ZIP na raiz do projeto, preservando o caminho `app/src/main/assets/`. O arquivo `hello_kitty.glb` que já existe no projeto local deve permanecer nessa mesma pasta.
+## Atenção — arquivos binários
+Os arquivos GLB são binários e precisam ser adicionados ao GitHub como arquivos do projeto, não apenas existir na cópia local do Android Studio. Confira na página da branch se os cinco arquivos aparecem em `app/src/main/assets/`. Nesta revisão, o conector do GitHub não localizou esses cinco binários na branch; portanto, não marque a inclusão dos modelos como concluída até confirmar o envio.
 
-## Fluxo do jogo
-
-1. Abra a aba de coleção.
-2. Escolha um personagem em **Ver na câmera**.
-3. Posicione o modelo no ambiente.
-4. Pressione **Coletar personagem (+1)** para somar um ponto.
-
-## Observação de integração
-
-A interface e o reconhecimento dos nomes já estão na branch `feature-sanrio`. Os quatro arquivos GLB recebidos foram reunidos em um ZIP para serem copiados para a pasta de assets; eles ainda precisam ser adicionados e enviados ao GitHub pelo Android Studio/GitHub Desktop. Faça isso antes de compilar para que os personagens apareçam na lista.
+## Testes de entrega
+- Compile com **Build > Compile 'AndroidAppTemplateAR.app.main'**.
+- Execute em um celular compatível com Google ARCore.
+- Teste os cinco modelos, posicionamento, coleta, pontuação e áudio.
+- Registre fotos/prints dos personagens renderizados em RA.
