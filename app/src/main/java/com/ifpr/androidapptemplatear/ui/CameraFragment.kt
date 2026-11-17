@@ -15,9 +15,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.ar.core.Config
-import com.ifpr.androidapptemplatear.MainActivity
 import io.github.sceneview.ar.ArSceneView
 import io.github.sceneview.ar.node.ArModelNode
 import io.github.sceneview.ar.node.PlacementMode
@@ -35,6 +35,7 @@ class CameraFragment : Fragment() {
 
     private val CAMERA_PERMISSION_CODE = 1001
     private var currentModelFile: String = "neutrofilo.glb"
+    private lateinit var sharedViewModel: SharedModelViewModel
 
     // Estado da partida: três vidas e no mínimo um segundo entre danos.
     private var vidas = 3
@@ -72,6 +73,15 @@ class CameraFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        sharedViewModel = ViewModelProvider(requireActivity())[SharedModelViewModel::class.java]
+        sharedViewModel.selectedModel.observe(viewLifecycleOwner) { path ->
+            currentModelFile = path
+            if (ContextCompat.checkSelfPermission(requireContext(), android.Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED
+            ) {
+                loadModel(path)
+            }
+        }
         checkCameraPermission()
     }
 
