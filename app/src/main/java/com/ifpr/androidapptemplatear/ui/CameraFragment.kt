@@ -2,8 +2,8 @@ package com.ifpr.androidapptemplatear.ui
 
 import android.content.Context
 import android.content.pm.PackageManager
-import android.media.AudioManager
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioTrack
 import android.media.ToneGenerator
 import android.net.Uri
@@ -24,8 +24,9 @@ import io.github.sceneview.ar.ArSceneView
 import io.github.sceneview.ar.node.ArModelNode
 import io.github.sceneview.ar.node.PlacementMode
 import io.github.sceneview.math.Position
+import java.io.File
 import java.io.IOException
-import java.io.File\nimport kotlin.math.sin
+import kotlin.math.sin
 
 class CameraFragment : Fragment() {
 
@@ -37,10 +38,10 @@ class CameraFragment : Fragment() {
     private lateinit var sharedViewModel: SharedModelViewModel
 
     private var currentModelFile = "hello_kitty.glb"
-    private var ambientTrack: AudioTrack? = null
     private var modelReady = false
     private var score = 0
     private var toneGenerator: ToneGenerator? = null
+    private var ambientTrack: AudioTrack? = null
 
     private val cameraPermissionCode = 1001
 
@@ -50,8 +51,9 @@ class CameraFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         val view = inflater.inflate(R.layout.fragment_camera, container, false)
+        currentModelFile = findInitialSanrioModel()
 
-        currentModelFile = findInitialSanrioModel()\n\n        sceneView = view.findViewById<ArSceneView>(R.id.sceneView).apply {
+        sceneView = view.findViewById<ArSceneView>(R.id.sceneView).apply {
             lightEstimationMode = Config.LightEstimationMode.DISABLED
         }
         placeButton = view.findViewById(R.id.place)
@@ -73,16 +75,12 @@ class CameraFragment : Fragment() {
         }
 
         collectButton.isEnabled = false
-        collectButton.setOnClickListener {
-            collectCurrentModel()
-        }
-
+        collectButton.setOnClickListener { collectCurrentModel() }
         return view
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
         sharedViewModel = ViewModelProvider(requireActivity())[SharedModelViewModel::class.java]
         sharedViewModel.selectedModel.observe(viewLifecycleOwner) { fileName ->
             currentModelFile = fileName
@@ -92,11 +90,21 @@ class CameraFragment : Fragment() {
                 loadModel(fileName)
             }
         }
-
         checkCameraPermission()
     }
 
+    override fun onResume() {
+        super.onResume()
+        startAmbientSound()
+    }
+
+    override fun onPause() {
+        stopAmbientSound()
+        super.onPause()
+    }
+
     override fun onDestroyView() {
+        stopAmbientSound()
         toneGenerator?.release()
         toneGenerator = null
         super.onDestroyView()
@@ -131,7 +139,29 @@ class CameraFragment : Fragment() {
         }
     }
 
+    private fun findInitialSanrioModel(): String {
+        val files = requireContext().assets.list("")?.filter { it.endsWith(".glb", true) }.orEmpty()
+        val preferred = listOf(
+            "hello_kitty.glb", "hello_kitty (1).glb",
+            "my_melody.glb", "kuromi.glb", "cinamon.glb", "pompompurin.glb"
+        )
+        return preferred.firstOrNull { it in files } ?: files.firstOrNull() ?: "hello_kitty.glb"
+    }
+
     private fun loadModel(fileName: String) {
+        val available = requireContext().assets.list("")?.toSet().orEmpty()
+        if (fileName !in available) {
+            modelReady = false
+            collectButton.isEnabled = false
+            Toast.makeText(
+                requireContext(),
+                "Modelo não encontrado: $fileName. Confira a pasta app/src/main/assets.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        currentModelFile = fileName
         modelReady = false
         collectButton.isEnabled = false
 
@@ -155,32 +185,79 @@ class CameraFragment : Fragment() {
             isEditable = true
             isScaleEditable = false
         }
-
         sceneView.addChild(modelNode)
     }
 
-    /**
-     * A coleta é uma ação do jogador: remove o objeto exibido,
-     * soma um ponto e reproduz um efeito sonoro.
-     */
     private fun collectCurrentModel() {
         if (!modelReady) return
-
         sceneView.removeChild(modelNode)
         modelReady = false
         collectButton.isEnabled = false
-
         score++
         updateScore()
         toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 220)
 
-        val nome = currentModelFile
-            .removeSuffix(".glb")
+        val nome = currentModelFile.substringBeforeLast(".")
+            .replace(Regex(" \\(\\d+\\)$"), "")
             .replace("_", " ")
         Toast.makeText(requireContext(), "$nome coletado! +1 ponto", Toast.LENGTH_SHORT).show()
     }
 
-    private fun findInitialSanrioModel(): String {\n        val files = requireContext().assets.list("")?.filter { it.endsWith(".glb", true) }.orEmpty()\n        val preferred = listOf("hello_kitty.glb", "hello_kitty (1).glb", "my_melody.glb", "kuromi.glb", "cinamon.glb", "pompompurin.glb")\n        return preferred.firstOrNull { it in files } ?: files.firstOrNull() ?: "hello_kitty.glb"\n    }\n\n    // Trilha ambiente suave sintetizada localmente; não exige arquivo de áudio externo.\n    private fun startAmbientSound() {\n        if (ambientTrack?.playState == AudioTrack.PLAYSTATE_PLAYING) return\n        val sampleRate = 22050\n        val durationSeconds = 4\n        val sampleCount = sampleRate * durationSeconds\n        val samples = ShortArray(sampleCount)\n        for (i in samples.indices) {\n            val t = i.toDouble() / sampleRate\n            val fade = minOf(1.0, t / 0.5, (durationSeconds - t) / 0.5).coerceAtLeast(0.0)\n            val wave = sin(2.0 * Math.PI * 220.0 * t) * 0.35 +\n                sin(2.0 * Math.PI * 277.18 * t) * 0.25 +\n                sin(2.0 * Math.PI * 329.63 * t) * 0.20\n            samples[i] = (wave * fade * 900.0).toInt().toShort()\n        }\n        val bufferBytes = samples.size * 2\n        val track = AudioTrack.Builder()\n            .setAudioAttributes(android.media.AudioAttributes.Builder()\n                .setUsage(android.media.AudioAttributes.USAGE_GAME)\n                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build())\n            .setAudioFormat(AudioFormat.Builder()\n                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)\n                .setSampleRate(sampleRate)\n                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())\n            .setBufferSizeInBytes(bufferBytes)\n            .setTransferMode(AudioTrack.MODE_STATIC)\n            .build()\n        track.write(samples, 0, samples.size)\n        track.setLoopPoints(0, samples.size, -1)\n        track.setVolume(0.12f)\n        track.play()\n        ambientTrack = track\n    }\n\n    private fun stopAmbientSound() {\n        ambientTrack?.let { track ->\n            try {\n                track.pause()\n                track.flush()\n                track.release()\n            } catch (_: Exception) { }\n        }\n        ambientTrack = null\n    }\n\n    private fun updateScore() {
+    // Trilha ambiente suave sintetizada localmente, sem arquivo externo.
+    private fun startAmbientSound() {
+        if (ambientTrack?.playState == AudioTrack.PLAYSTATE_PLAYING) return
+
+        val sampleRate = 22050
+        val durationSeconds = 4
+        val samples = ShortArray(sampleRate * durationSeconds)
+        for (i in samples.indices) {
+            val t = i.toDouble() / sampleRate
+            val fade = minOf(1.0, t / 0.5, (durationSeconds - t) / 0.5).coerceAtLeast(0.0)
+            val wave = sin(2.0 * Math.PI * 220.0 * t) * 0.35 +
+                sin(2.0 * Math.PI * 277.18 * t) * 0.25 +
+                sin(2.0 * Math.PI * 329.63 * t) * 0.20
+            samples[i] = (wave * fade * 900.0).toInt().toShort()
+        }
+
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_GAME)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(samples.size * 2)
+            .setTransferMode(AudioTrack.MODE_STATIC)
+            .build()
+
+        track.write(samples, 0, samples.size)
+        track.setLoopPoints(0, samples.size, -1)
+        track.setVolume(0.12f)
+        track.play()
+        ambientTrack = track
+    }
+
+    private fun stopAmbientSound() {
+        ambientTrack?.let { track ->
+            try {
+                track.pause()
+                track.flush()
+                track.release()
+            } catch (_: Exception) {
+                // A faixa pode já ter sido liberada pelo sistema.
+            }
+        }
+        ambientTrack = null
+    }
+
+    private fun updateScore() {
         scoreText.text = "Pontos: $score"
     }
 
