@@ -1,31 +1,28 @@
-# Fase 2 — Realidade Aumentada no Android
+# Fase 2 — Sanrio AR
 
 ## Modelos 3D
-A pasta `app/src/main/assets` contém os modelos GLB:
-- `neutrofilo.glb`
-- `plane.glb`
-- `sofa.glb`
+A tela de seleção lê automaticamente os arquivos `.glb` presentes em `app/src/main/assets`. Para a versão temática Sanrio, adicione:
+- `hello_kitty.glb` (ou `hello_kitty (1).glb`)
+- `my_melody.glb`
+- `kuromi.glb`
+- `cinamon.glb` (Cinnamoroll)
+- `pompompurin.glb`
 
-A tela de seleção (`ChangeObjectFragment`) lê automaticamente os arquivos `.glb` dessa pasta e cria uma opção para exibir cada modelo na câmera de realidade aumentada.
+O seletor normaliza nomes com sufixos como ` (1)` para exibir o nome correto do personagem.
 
-## Nova funcionalidade: coleta e pontuação
-Na tela de realidade aumentada:
-1. O usuário escolhe um modelo na lista e o posiciona no ambiente.
-2. O botão **Coletar objeto (+1)** remove o modelo atual da cena.
-3. Cada coleta soma um ponto no contador.
-4. A coleta reproduz um efeito sonoro de confirmação.
+## Interação
+1. Escolher um personagem na lista.
+2. Abrir a câmera e posicionar o modelo no ambiente.
+3. Pressionar **Coletar**: o modelo é removido da cena, a pontuação aumenta em um ponto e toca um efeito de confirmação.
+4. Voltar à lista para selecionar outro personagem.
 
-O botão de coleta permanece desativado enquanto o modelo está carregando ou depois de ser coletado. Para coletar outro objeto, basta voltar à lista e selecionar outro modelo.
+## Áudio
+A coleta toca um efeito sonoro curto. A tela da câmera também gera uma trilha ambiente suave localmente, sem depender de arquivo de áudio externo. A trilha é interrompida quando a tela sai de primeiro plano e liberada ao fechar a câmera.
 
-## Arquivos principais
-- `CameraFragment.kt`: carregamento do modelo, coleta, pontuação e efeito sonoro.
-- `fragment_camera.xml`: contador de pontos e botão de coleta.
-- `ChangeObjectFragment.kt`: lista dinâmica dos modelos GLB já existente no projeto.
+## Correções desta revisão
+- O modelo inicial agora procura primeiro Hello Kitty e, se não estiver disponível, seleciona outro GLB encontrado nos assets.
+- A câmera não tenta carregar silenciosamente um modelo antigo chamado `neutrofilo.glb`.
+- Se o arquivo selecionado não existir, o app informa o problema em vez de prosseguir com o carregamento.
 
-## Testes necessários antes da entrega
-- Executar em um celular compatível com Google ARCore e conceder permissão de câmera.
-- Selecionar e posicionar cada modelo GLB.
-- Verificar que a coleta remove o modelo, soma exatamente um ponto e toca o som.
-- Repetir com os três modelos e registrar prints/fotos da execução real.
-
-> A compilação e os testes em dispositivo precisam ser realizados no Android Studio; não foram executados pelo GitHub.
+## Validação necessária
+A compilação deve ser executada no Android Studio. O teste de RA precisa ser feito em um celular compatível com Google ARCore, verificando carregamento, posicionamento, coleta, pontuação e áudio. Prints dos modelos renderizados em RA devem ser registrados no dispositivo.
