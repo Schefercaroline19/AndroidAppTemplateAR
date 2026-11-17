@@ -22,7 +22,7 @@ import io.github.sceneview.ar.ArSceneView
 import io.github.sceneview.ar.node.ArModelNode
 import io.github.sceneview.ar.node.PlacementMode
 import io.github.sceneview.math.Position
-import okio.IOException
+import java.io.IOException
 import java.io.File
 
 class CameraFragment : Fragment() {
