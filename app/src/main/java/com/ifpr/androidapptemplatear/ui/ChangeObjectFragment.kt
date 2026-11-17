@@ -57,7 +57,8 @@ class ChangeObjectFragment : Fragment() {
     }
 
     private fun nomeAmigavel(arquivo: String): String {
-        return when (arquivo.substringBeforeLast(".").lowercase()) {
+        val baseName = arquivo.substringBeforeLast(".").replace(Regex(" \\(\\d+\\)$"), "").lowercase()
+        return when (baseName) {
             "hello_kitty", "hellokitty" -> "Hello Kitty"
             "my_melody", "mymelody" -> "My Melody"
             "kuromi" -> "Kuromi"
