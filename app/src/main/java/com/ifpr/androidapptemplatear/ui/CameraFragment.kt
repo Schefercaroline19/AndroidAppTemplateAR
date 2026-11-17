@@ -3,6 +3,8 @@ package com.ifpr.androidapptemplatear.ui
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioManager
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Bundle
@@ -23,7 +25,7 @@ import io.github.sceneview.ar.node.ArModelNode
 import io.github.sceneview.ar.node.PlacementMode
 import io.github.sceneview.math.Position
 import java.io.IOException
-import java.io.File
+import java.io.File\nimport kotlin.math.sin
 
 class CameraFragment : Fragment() {
 
@@ -34,7 +36,8 @@ class CameraFragment : Fragment() {
     private lateinit var scoreText: TextView
     private lateinit var sharedViewModel: SharedModelViewModel
 
-    private var currentModelFile = "neutrofilo.glb"
+    private var currentModelFile = "hello_kitty.glb"
+    private var ambientTrack: AudioTrack? = null
     private var modelReady = false
     private var score = 0
     private var toneGenerator: ToneGenerator? = null
@@ -48,7 +51,7 @@ class CameraFragment : Fragment() {
     ): View {
         val view = inflater.inflate(R.layout.fragment_camera, container, false)
 
-        sceneView = view.findViewById<ArSceneView>(R.id.sceneView).apply {
+        currentModelFile = findInitialSanrioModel()\n\n        sceneView = view.findViewById<ArSceneView>(R.id.sceneView).apply {
             lightEstimationMode = Config.LightEstimationMode.DISABLED
         }
         placeButton = view.findViewById(R.id.place)
@@ -177,7 +180,7 @@ class CameraFragment : Fragment() {
         Toast.makeText(requireContext(), "$nome coletado! +1 ponto", Toast.LENGTH_SHORT).show()
     }
 
-    private fun updateScore() {
+    private fun findInitialSanrioModel(): String {\n        val files = requireContext().assets.list("")?.filter { it.endsWith(".glb", true) }.orEmpty()\n        val preferred = listOf("hello_kitty.glb", "hello_kitty (1).glb", "my_melody.glb", "kuromi.glb", "cinamon.glb", "pompompurin.glb")\n        return preferred.firstOrNull { it in files } ?: files.firstOrNull() ?: "hello_kitty.glb"\n    }\n\n    // Trilha ambiente suave sintetizada localmente; não exige arquivo de áudio externo.\n    private fun startAmbientSound() {\n        if (ambientTrack?.playState == AudioTrack.PLAYSTATE_PLAYING) return\n        val sampleRate = 22050\n        val durationSeconds = 4\n        val sampleCount = sampleRate * durationSeconds\n        val samples = ShortArray(sampleCount)\n        for (i in samples.indices) {\n            val t = i.toDouble() / sampleRate\n            val fade = minOf(1.0, t / 0.5, (durationSeconds - t) / 0.5).coerceAtLeast(0.0)\n            val wave = sin(2.0 * Math.PI * 220.0 * t) * 0.35 +\n                sin(2.0 * Math.PI * 277.18 * t) * 0.25 +\n                sin(2.0 * Math.PI * 329.63 * t) * 0.20\n            samples[i] = (wave * fade * 900.0).toInt().toShort()\n        }\n        val bufferBytes = samples.size * 2\n        val track = AudioTrack.Builder()\n            .setAudioAttributes(android.media.AudioAttributes.Builder()\n                .setUsage(android.media.AudioAttributes.USAGE_GAME)\n                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build())\n            .setAudioFormat(AudioFormat.Builder()\n                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)\n                .setSampleRate(sampleRate)\n                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())\n            .setBufferSizeInBytes(bufferBytes)\n            .setTransferMode(AudioTrack.MODE_STATIC)\n            .build()\n        track.write(samples, 0, samples.size)\n        track.setLoopPoints(0, samples.size, -1)\n        track.setVolume(0.12f)\n        track.play()\n        ambientTrack = track\n    }\n\n    private fun stopAmbientSound() {\n        ambientTrack?.let { track ->\n            try {\n                track.pause()\n                track.flush()\n                track.release()\n            } catch (_: Exception) { }\n        }\n        ambientTrack = null\n    }\n\n    private fun updateScore() {
         scoreText.text = "Pontos: $score"
     }
 
