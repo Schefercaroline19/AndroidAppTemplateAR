@@ -1,6 +1,7 @@
 package com.ifpr.androidapptemplatear.ui
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioManager
@@ -8,6 +9,7 @@ import android.media.AudioTrack
 import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -34,7 +36,9 @@ class CameraFragment : Fragment() {
     private lateinit var modelNode: ArModelNode
     private lateinit var placeButton: ExtendedFloatingActionButton
     private lateinit var collectButton: ExtendedFloatingActionButton
+    private lateinit var obstacleButton: ExtendedFloatingActionButton
     private lateinit var scoreText: TextView
+    private lateinit var livesText: TextView
     private lateinit var sharedViewModel: SharedModelViewModel
 
     private var currentModelFile = "hello_kitty.glb"
@@ -58,31 +62,40 @@ class CameraFragment : Fragment() {
         }
         placeButton = view.findViewById(R.id.place)
         collectButton = view.findViewById(R.id.collect)
+        obstacleButton = view.findViewById(R.id.obstacle)
         scoreText = view.findViewById(R.id.scoreText)
+        livesText = view.findViewById(R.id.livesText)
 
         toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
         updateScore()
 
         placeButton.setOnClickListener {
+            if (partidaEncerrada()) return@setOnClickListener
             if (modelReady) {
                 modelNode.anchor()
                 modelNode.isEditable = true
                 modelNode.isScaleEditable = false
                 sceneView.planeRenderer.isVisible = false
             } else {
-                Toast.makeText(requireContext(), "Aguarde o carregamento do modelo.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Aguarde o carregamento do personagem.", Toast.LENGTH_SHORT).show()
             }
         }
 
         collectButton.isEnabled = false
         collectButton.setOnClickListener { collectCurrentModel() }
+
+        // Interação de obstáculo para acionar e testar a regra de três vidas.
+        obstacleButton.setOnClickListener { registrarContatoComObstaculo() }
         return view
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         sharedViewModel = ViewModelProvider(requireActivity())[SharedModelViewModel::class.java]
+        updateLives()
+
         sharedViewModel.selectedModel.observe(viewLifecycleOwner) { fileName ->
+            if (partidaEncerrada()) return@observe
             currentModelFile = fileName
             if (ContextCompat.checkSelfPermission(requireContext(), android.Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_GRANTED
@@ -95,7 +108,7 @@ class CameraFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        startAmbientSound()
+        if (!partidaEncerrada()) startAmbientSound()
     }
 
     override fun onPause() {
@@ -110,6 +123,9 @@ class CameraFragment : Fragment() {
         super.onDestroyView()
     }
 
+    private fun partidaEncerrada(): Boolean =
+        ::sharedViewModel.isInitialized && sharedViewModel.jogoEncerrado
+
     private fun checkCameraPermission() {
         if (ContextCompat.checkSelfPermission(requireContext(), android.Manifest.permission.CAMERA)
             != PackageManager.PERMISSION_GRANTED
@@ -119,7 +135,7 @@ class CameraFragment : Fragment() {
                 arrayOf(android.Manifest.permission.CAMERA),
                 cameraPermissionCode
             )
-        } else {
+        } else if (!partidaEncerrada()) {
             loadModel(currentModelFile)
         }
     }
@@ -131,10 +147,10 @@ class CameraFragment : Fragment() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == cameraPermissionCode && grantResults.isNotEmpty() &&
-            grantResults[0] == PackageManager.PERMISSION_GRANTED
+            grantResults[0] == PackageManager.PERMISSION_GRANTED && !partidaEncerrada()
         ) {
             loadModel(currentModelFile)
-        } else if (requestCode == cameraPermissionCode) {
+        } else if (requestCode == cameraPermissionCode && !partidaEncerrada()) {
             Toast.makeText(requireContext(), "Permissão de câmera negada.", Toast.LENGTH_LONG).show()
         }
     }
@@ -149,13 +165,14 @@ class CameraFragment : Fragment() {
     }
 
     private fun loadModel(fileName: String) {
+        if (partidaEncerrada()) return
         val available = requireContext().assets.list("")?.toSet().orEmpty()
         if (fileName !in available) {
             modelReady = false
             collectButton.isEnabled = false
             Toast.makeText(
                 requireContext(),
-                "Modelo não encontrado: $fileName. Confira a pasta app/src/main/assets.",
+                "Modelo não encontrado: $fileName. Confira app/src/main/assets.",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -178,9 +195,11 @@ class CameraFragment : Fragment() {
                 glbFileLocation = getFilePath(requireContext(), fileName),
                 centerOrigin = Position(0f, 0f, 1f)
             ) {
-                modelReady = true
-                collectButton.isEnabled = true
-                sceneView.planeRenderer.isVisible = true
+                if (!partidaEncerrada()) {
+                    modelReady = true
+                    collectButton.isEnabled = true
+                    sceneView.planeRenderer.isVisible = true
+                }
             }
             isEditable = true
             isScaleEditable = false
@@ -189,7 +208,7 @@ class CameraFragment : Fragment() {
     }
 
     private fun collectCurrentModel() {
-        if (!modelReady) return
+        if (partidaEncerrada() || !modelReady) return
         sceneView.removeChild(modelNode)
         modelReady = false
         collectButton.isEnabled = false
@@ -203,9 +222,57 @@ class CameraFragment : Fragment() {
         Toast.makeText(requireContext(), "$nome coletado! +1 ponto", Toast.LENGTH_SHORT).show()
     }
 
-    // Trilha ambiente suave sintetizada localmente, sem arquivo externo.
+    private fun registrarContatoComObstaculo() {
+        if (partidaEncerrada()) return
+        val agora = SystemClock.elapsedRealtime()
+        if (!sharedViewModel.registrarDano(agora)) return
+
+        updateLives()
+        toneGenerator?.startTone(ToneGenerator.TONE_PROP_NACK, 180)
+        if (sharedViewModel.vidas == 0) {
+            encerrarJogo("Suas vidas acabaram.")
+        } else {
+            Toast.makeText(
+                requireContext(),
+                "Obstáculo atingido! Restam ${sharedViewModel.vidas} vidas.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun updateLives() {
+        if (::livesText.isInitialized && ::sharedViewModel.isInitialized) {
+            livesText.text = "Vidas: ${sharedViewModel.vidas}"
+        }
+    }
+
+    private fun encerrarJogo(motivo: String) {
+        if (partidaEncerrada()) return
+        sharedViewModel.jogoEncerrado = true
+
+        // Interrompe coleta, posicionamento, áudio e interação com a cena.
+        modelReady = false
+        placeButton.isEnabled = false
+        collectButton.isEnabled = false
+        obstacleButton.isEnabled = false
+        stopAmbientSound()
+        toneGenerator?.stopTone()
+        try {
+            if (::modelNode.isInitialized) sceneView.removeChild(modelNode)
+        } catch (_: Exception) {
+            // A cena pode já estar sendo destruída.
+        }
+        sceneView.visibility = View.GONE
+
+        val tela = Intent(requireContext(), GameOverActivity::class.java)
+            .putExtra(GameOverActivity.EXTRA_MOTIVO, motivo)
+        startActivity(tela)
+        requireActivity().finish()
+    }
+
+    // Trilha ambiente sintetizada localmente, sem depender de arquivo externo.
     private fun startAmbientSound() {
-        if (ambientTrack?.playState == AudioTrack.PLAYSTATE_PLAYING) return
+        if (partidaEncerrada() || ambientTrack?.playState == AudioTrack.PLAYSTATE_PLAYING) return
 
         val sampleRate = 22050
         val durationSeconds = 4
@@ -267,11 +334,8 @@ class CameraFragment : Fragment() {
             fileName
         } catch (_: IOException) {
             val internalFile = File(context.filesDir, fileName)
-            if (internalFile.exists()) {
-                Uri.fromFile(internalFile).toString()
-            } else {
-                throw IllegalArgumentException("Modelo 3D não encontrado: $fileName")
-            }
+            if (internalFile.exists()) Uri.fromFile(internalFile).toString()
+            else throw IllegalArgumentException("Modelo 3D não encontrado: $fileName")
         }
     }
 }
